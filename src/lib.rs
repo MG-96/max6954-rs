@@ -7,10 +7,28 @@
 //!
 //! # Examples
 //! ```no_run
-//! todo!()
+//! use max6954::*;
+//! 
+//! let mut max6954 = Max6954::new(spi);
+//! 
+//! // Configure the MAX6954 to clear all data and leave shutdown mode
+//! max6954.set_configuration(Configuration::ClearData | Configuration::NotShutdown).unwrap();
+//! 
+//! // Set the global intensity to 0x0F (maximum)
+//! max6954.write_register(Register::GlobalIntensity, 0x0F).unwrap();
+//! 
+//! // Set Digit 0 to ascii '0'
+//! max6954.set_digit_ascii(Digit::D0, Plane::P0, '0', false).unwrap();
+//! 
+//! // Set Digit 1 to hexadecimal font '1'
+//! max6954.set_digit_hex(Digit::D1, Plane::P0, 1, false).unwrap();
+//! 
 //! ```
 
 mod font;
+
+#[cfg(feature = "segment7-font")]
+pub use font::segment7font;
 
 use embedded_hal::spi::{Operation, SpiDevice};
 use enumflags2::{bitflags, BitFlags};
@@ -20,6 +38,7 @@ use num_enum::TryFromPrimitive;
 #[derive(Clone, Copy, Debug)]
 pub enum Error<SPI> {
     Spi(SPI),
+    InvalidInput,
 }
 pub struct Max6954<SPI> {
     spi: SPI,
@@ -33,6 +52,7 @@ impl<SPI: SpiDevice> Max6954<SPI> {
         self.spi
     }
 
+    /// Write a byte directly to a [Register]
     pub fn write_register(&mut self, address: Register, data: u8) -> Result<(), Error<SPI::Error>> {
         self.spi
             .transaction(&mut [Operation::Write(&[address as u8, data])])
@@ -55,7 +75,7 @@ impl<SPI: SpiDevice> Max6954<SPI> {
         &mut self,
         config: BitFlags<Configuration>,
     ) -> Result<(), Error<SPI::Error>> {
-        self.write_register(Register::Configuration, config.bits_c())
+        self.write_register(Register::Configuration, config.bits())
     }
 
     /// Unblanks all registers by setting _D0P0P1-D7P0P1_ to 0x00.
@@ -76,11 +96,40 @@ impl<SPI: SpiDevice> Max6954<SPI> {
         &mut self,
         digits: BitFlags<DigitConfiguration>,
     ) -> Result<(), Error<SPI::Error>> {
-        self.write_register(Register::DecodeMode, digits.bits_c())
+        self.write_register(Register::DecodeMode, digits.bits())
+    }
+    
+    /// The digit-type register configures the display driver for various combinations of 14-segment digits, 16-segment digits, and/or pairs, or 7-segment digits.
+    /// 
+    /// The function of this register is to select the appropriate font for each digit and route the output of the font to the appropriate MAX6954 driver output pins.
+    /// 
+    /// Setting a digit configures it as 14-segment digit. Refer to table 37 - 40 of the datasheet for detailed information.
+    pub fn set_digit_type(
+        &mut self,
+        digits: BitFlags<DigitConfiguration>,
+    ) -> Result<(), Error<SPI::Error>> {
+        self.write_register(Register::DecodeMode, digits.bits())
+    }
+
+    /// The scan-limit register sets how many 14-segment digits or 16-segment digits or pairs of 7-segment digits are displayed, from 1 to 8. 
+    /// A bicolor digit is connected as two monocolor digits. 
+    /// The scan register also limits the number of keys that can be scanned.
+    ///
+    /// Since the number of scanned digits affects the display brightness, the scan-limit register should not be used to blank portions of the display (such as leading-zero sup- pression). 
+    /// Table 25 shows the scan-limit register format.
+    pub fn scan_limit(
+        &mut self,
+        limit: u8,
+    ) -> Result<(), Error<SPI::Error>> {
+        if limit > 0x07 {
+            return Err(Error::InvalidInput);
+        }
+        self.write_register(Register::ScanLimit, limit)
     }
 
     /// Writes a u8 to the digits register.
     ///
+    /// When decoding is enabled the value is displayed in hexadecimal.
     /// Values which can't be represented by a single digit will be converted to blank.
     ///  
     /// [Decoding](Max6954::enable_decode()) for the digit has to be enabled for correct display.
@@ -109,6 +158,20 @@ impl<SPI: SpiDevice> Max6954<SPI> {
     ) -> Result<(), Error<SPI::Error>> {
         let value = AsciiFont::from(value);
         self.write_register(digit.register(plane), value.0 | (dp as u8) << 7)
+    }
+
+    /// Writes a [Segment7 font](segment7font::Segment7) character to the digits register.
+    /// 
+    /// [Decoding](Max6954::enable_decode()) for the digit has to be disabled for correct display.
+    #[cfg(feature = "segment7-font")]
+    pub fn set_digit_segment7(
+        &mut self,
+        digit: Digit,
+        plane: Plane,
+        value: segment7font::Segment7,
+        dp: bool,
+    ) -> Result<(), Error<SPI::Error>> {
+        self.write_register(digit.register(plane), value as u8 | (dp as u8) << 7)
     }
 }
 

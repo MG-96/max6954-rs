@@ -1,6 +1,9 @@
+#[cfg(feature = "segment7-font")]
+pub mod segment7font;
+
 use enumflags2::bitflags;
 use num_enum::FromPrimitive;
-pub struct AsciiFont(pub(crate) u8);
+pub(crate) struct AsciiFont(pub(crate) u8);
 
 impl From<HexFont> for AsciiFont {
     fn from(value: HexFont) -> Self {
@@ -28,7 +31,7 @@ impl From<AsciiFont> for u8 {
 /// When a digit is blanked, it also affects its pair (e.g. _D0_ also blanks _D0a_)
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, FromPrimitive)]
-pub enum HexFont {
+pub(crate) enum HexFont {
     Zero = 0x00,
     One = 0x01,
     Two = 0x02,
@@ -61,7 +64,7 @@ impl From<char> for HexFont {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[bitflags]
-pub enum SegmentControl {
+pub enum Segments {
     A = 0b0100_0000,
     B = 0b0010_0000,
     C = 0b0001_0000,
