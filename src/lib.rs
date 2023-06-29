@@ -88,7 +88,7 @@ impl<SPI: SpiDevice> Max6954<SPI> {
         Ok(())
     }
 
-    /// Specified digits are set to decode mode (default all).
+    /// Specified digits are set to decode mode (default after device reset).
     ///
     /// For digits not set, the font decoding will be disabled (only for 7-segment mode).
     /// For 7-segment digits with disabled decoding, every segment can be controlled individually.
@@ -103,7 +103,7 @@ impl<SPI: SpiDevice> Max6954<SPI> {
     /// 
     /// The function of this register is to select the appropriate font for each digit and route the output of the font to the appropriate MAX6954 driver output pins.
     /// 
-    /// Setting a digit configures it as 14-segment digit. Refer to table 37 - 40 of the datasheet for detailed information.
+    /// Setting a digit configures it as 14-segment digit. Refer to tables 37 - 40 of the datasheet for detailed information.
     pub fn set_digit_type(
         &mut self,
         digits: BitFlags<DigitConfiguration>,
@@ -132,7 +132,7 @@ impl<SPI: SpiDevice> Max6954<SPI> {
     /// When decoding is enabled the value is displayed in hexadecimal.
     /// Values which can't be represented by a single digit will be converted to blank.
     ///  
-    /// [Decoding](Max6954::enable_decode()) for the digit has to be enabled for correct display.
+    /// [Decoding](Max6954::enable_decode()) for the digit has to be __enabled__ for correct display.
     pub fn set_digit_hex(
         &mut self,
         digit: Digit,
@@ -148,7 +148,7 @@ impl<SPI: SpiDevice> Max6954<SPI> {
     ///
     /// Non ASCII [chars](char) will be converted to blank.
     ///
-    /// [Decoding](Max6954::enable_decode()) for the digit has to be enabled for correct display.
+    /// [Decoding](Max6954::enable_decode()) for the digit has to be __enabled__ for correct display.
     pub fn set_digit_ascii(
         &mut self,
         digit: Digit,
@@ -162,16 +162,21 @@ impl<SPI: SpiDevice> Max6954<SPI> {
 
     /// Writes a [Segment7 font](segment7font::Segment7) character to the digits register.
     /// 
-    /// [Decoding](Max6954::enable_decode()) for the digit has to be disabled for correct display.
+    /// [Decoding](Max6954::enable_decode()) for the digit has to be __disabled__ for correct display.
+    /// ```no_run
+    /// // Sets digit 0 to 'y' with DP off
+    /// max6954.set_digit_segment7(Digit::D0, Plane::Both, 'y', false).unwrap();
+    /// ```
     #[cfg(feature = "segment7-font")]
-    pub fn set_digit_segment7(
+    pub fn set_digit_segment7<T: Into<segment7font::Segment7>>(
         &mut self,
         digit: Digit,
         plane: Plane,
-        value: segment7font::Segment7,
+        value: T,
         dp: bool,
     ) -> Result<(), Error<SPI::Error>> {
-        self.write_register(digit.register(plane), value as u8 | (dp as u8) << 7)
+        let c: segment7font::Segment7 = value.into();
+        self.write_register(digit.register(plane), c as u8 | (dp as u8) << 7)
     }
 }
 

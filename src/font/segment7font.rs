@@ -1,6 +1,9 @@
 use super::Segments;
 use enumflags2::make_bitflags;
 
+/// A Font for 7 segment displays
+/// 
+/// Every character of the alphabet is covered with a unique symbol, plus some special characters and digits 0 - 9.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 pub enum Segment7 {
